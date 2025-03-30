@@ -1,2 +1,3 @@
-public_key_path = "~/.ssh/id_rsa.pub"
-ami_id          = "ami-0c2b8ca1dad447f8a" # Amazon Linux 2 in us-west-2
+db_username = "admin"
+db_password = "AsyncStrong123"
+ami_id      = "ami-xxxxxxxxxxxxxxxxx" # 替换成你 packer build 后的 AMI

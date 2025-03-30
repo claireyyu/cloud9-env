@@ -1,63 +1,36 @@
 #!/bin/bash
 
-# Basic logging
-exec > /var/log/ec2_user_data.log 2>&1
+# 输出日志
+exec > /var/log/user-data.log 2>&1
 set -eux
 
-# Update system & install dependencies
+# 安装 Docker（预防你用 Docker 启动 MQ）
 sudo yum update -y
-sudo yum install -y git golang wget
+sudo yum install -y docker git
+sudo systemctl enable docker
+sudo systemctl start docker
 
-# Install RabbitMQ + Erlang
-sudo tee /etc/yum.repos.d/rabbitmq_erlang.repo <<EOF
-[rabbitmq_erlang]
-name=rabbitmq_erlang
-baseurl=https://dl.cloudsmith.io/public/rabbitmq/rabbitmq-erlang/rpm/el/7/\$basearch
-gpgcheck=1
-gpgkey=https://dl.cloudsmith.io/public/rabbitmq/rabbitmq-erlang/gpg.34B1F9E5.key
-enabled=1
-EOF
+# 安装 Go（如果 AMI 里没有你也可以留着）
+curl -OL https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
+echo 'export PATH=$PATH:/usr/local/go/bin' | tee -a ~/.bashrc
+source ~/.bashrc
 
-sudo yum install -y erlang
-
-sudo tee /etc/yum.repos.d/rabbitmq.repo <<EOF
-[rabbitmq_rabbitmq-server]
-name=rabbitmq_rabbitmq-server
-baseurl=https://dl.cloudsmith.io/public/rabbitmq/rabbitmq-server/rpm/el/7/\$basearch
-gpgcheck=1
-gpgkey=https://dl.cloudsmith.io/public/rabbitmq/rabbitmq-server/gpg.B8A7C9F4.key
-enabled=1
-EOF
-
-sudo yum install -y rabbitmq-server
-
-# Start and enable RabbitMQ
-sudo systemctl enable rabbitmq-server
-sudo systemctl start rabbitmq-server
-sudo rabbitmq-plugins enable rabbitmq_management
-
-# Clone your project repo (replace with your actual Git repo)
+# 拉取你的 Go 服务代码（替换成你自己的 repo）
 cd /home/ec2-user
-git clone https://github.com/claireyyu/asynchronous-review-platform.git️
+git clone https://github.com/your-username/asynchronous-review-platform.git
 cd asynchronous-review-platform
 
-# Create .env file from Terraform (or use your own)
+# 设置环境变量
 cat > .env <<EOF
-DB_DSN=${db_username}:${db_password}@tcp(${rds_endpoint}):3306/reviews
+DB_DSN=${db_username}:${db_password}@tcp(${db_endpoint}):3306/reviews
 RABBIT_URL=amqp://guest:guest@localhost:5672/
 ASYNC_MODE=true
 CONSUMER_COUNT=3
 PORT=8080
 EOF
 
-# Build and run Go server
-cd src/server/go-server/
-go run main.go &
+export $(cat .env | xargs)
 
-# Optional: start monitor script (if it exists)
-cd /home/ec2-user/asynchronous-review-platform/scripts
-chmod +x monitor.sh
-./monitor.sh &
-
-# Done
-echo "✅ EC2 server is set up and running"
+# 运行你的 Go 服务（假设 main.go 在根目录）
+go run main.go > server.log 2>&1 &
